@@ -1,0 +1,25 @@
+Manifest-Version: 1.0
+Astah-Edition: all
+Astah-Version: 1.0
+Bnd-LastModified: 1764917918293
+Build-Jdk-Spec: 21
+Bundle-Activator: com.example.Activator
+Bundle-Description: %bundle.description
+Bundle-ManifestVersion: 2
+Bundle-Name: %bundle.name
+Bundle-SymbolicName: com.example.ImagesToGPT; singleton:=true
+Bundle-Version: 1.0.0.SNAPSHOT
+Created-By: Apache Maven Bundle Plugin 5.1.4
+Embed-Dependency: *;scope=compile|runtime;type=!pom
+Embed-Transitive: true
+Export-Package: com.example;version="1.0.0.SNAPSHOT";uses:="com.change_v
+ ision.jude.api.inf.ui,javax.swing,org.osgi.framework"
+Import-Package: com.change_vision.jude.api.inf;resolution:=optional,com.
+ change_vision.jude.api.inf.exception;resolution:=optional,com.change_vi
+ sion.jude.api.inf.model;resolution:=optional,com.change_vision.jude.api
+ .inf.project;resolution:=optional,com.change_vision.jude.api.inf.ui;res
+ olution:=optional,javax.imageio;resolution:=optional,javax.swing;resolu
+ tion:=optional,javax.swing.border;resolution:=optional,org.osgi.framewo
+ rk;resolution:=optional;version="[1.6,2)"
+Require-Capability: osgi.ee;filter:="(&(osgi.ee=JavaSE)(version=1.8))"
+Tool: Bnd-5.1.1.202006162103
