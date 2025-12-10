@@ -324,7 +324,7 @@ public class ImagesToGPT extends JPanel implements IPluginExtraTabView {
 
                 // JSON payload for Chat Completions with vision
                 String jsonPayload = "{\n" +
-                        "  \"model\": \"gpt-4.1-mini\",\n" +  // change model if you prefer
+                        "  \"model\": \"gpt-5-mini\",\n" +  // change model if you prefer
                         "  \"messages\": [\n" +
                         "    {\"role\": \"user\", \"content\": [\n" +
                         "      " + contentBuilder.toString() + "\n" +
