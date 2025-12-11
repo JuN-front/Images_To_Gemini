@@ -351,10 +351,9 @@ public class ImagesToGPT extends JPanel implements IPluginExtraTabView {
                         "  ]\n" +
                         "}";
 
-                String endpoint = "https://generativelanguage.googleapis.com/v1/models/"
-                        + "gemini-2.5-flash:generateContent?key="
+                String endpoint = "https://generativelanguage.googleapis.com/v1beta/models/"
+                        + "gemini-3-pro-preview:generateContent?key="
                         + URLEncoder.encode(apiKey, StandardCharsets.UTF_8.toString());
-
                 String response = postJson(endpoint, jsonPayload, apiKey);
 
                 SwingUtilities.invokeLater(() -> {
@@ -471,9 +470,11 @@ private String postProcessGeminiText(String text) {
 
     // Remove language label in fenced code blocks: ```mermaid -> ```
     result = result.replace("```mermaid", "```");
+    result = result.replace("```text", "```");
 
     // Remove standalone 'mermaid' lines
     result = result.replaceAll("(?m)^\\s*mermaid\\s*$", "");
+    result = result.replaceAll("(?m)^\\s*text\\s*$", "");
 
     // Remove lines like 'graph TD' or 'graphTD'
     result = result.replaceAll("(?m)^\\s*graph\\s*TD\\s*$", "");
@@ -482,6 +483,9 @@ private String postProcessGeminiText(String text) {
 
     // Remove UC labels like UC1, UC2, UC15, etc.
     result = result.replaceAll("\\bUC\\d+\\b", "");
+    
+    // (Optional) drop arrow-body lines like "| ^ |", "| / |"
+    result = result.replaceAll("(?m)^\\s*\\|\\s*[\\^/\\\\]\\s*\\|\\s*$", "");
 
     // Collapse multiple spaces that may be left after removals
     result = result.replaceAll(" {2,}", " ");
