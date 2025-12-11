@@ -304,7 +304,17 @@ public class ImagesToGPT extends JPanel implements IPluginExtraTabView {
 
         new Thread(() -> {
             try {
-                String prompt = promptTextArea.getText();
+                String userPrompt = promptTextArea.getText();
+
+                String fullPrompt =
+                "When you draw conceptual diagrams, follow these rules:\n" +
+                "- Use single-line arrows only.\n" +
+                "- Use formats like: A --include--> B, A --> B, A <-- B.\n" +
+                "- Do NOT use stacked ASCII art with lines containing only '^', '/', '|' etc.\n" +
+                "- Avoid mermaid, PlantUML, or other diagram languages.\n" +
+                "- Prefer readable plain text relationships over complex ASCII diagrams.\n\n"
+                + userPrompt;
+
                 List<String> base64Images = new ArrayList<>();
                 for (BufferedImage img : images) {
                     base64Images.add(encodeImageToBase64(img));
@@ -314,9 +324,9 @@ public class ImagesToGPT extends JPanel implements IPluginExtraTabView {
                 StringBuilder partsBuilder = new StringBuilder();
                 boolean first = true;
 
-                if (prompt != null && !prompt.trim().isEmpty()) {
+                if (fullPrompt != null && !fullPrompt.trim().isEmpty()) {
                     partsBuilder.append("{\"text\": ");
-                    partsBuilder.append(escapeJson(prompt));
+                    partsBuilder.append(escapeJson(fullPrompt));
                     partsBuilder.append("}");
                     first = false;
                 }
@@ -342,16 +352,18 @@ public class ImagesToGPT extends JPanel implements IPluginExtraTabView {
                         "}";
 
                 String endpoint = "https://generativelanguage.googleapis.com/v1/models/"
-                        + "gemini-3.0-pro:generateContent?key="
+                        + "gemini-2.5-flash:generateContent?key="
                         + URLEncoder.encode(apiKey, StandardCharsets.UTF_8.toString());
 
                 String response = postJson(endpoint, jsonPayload, apiKey);
 
                 SwingUtilities.invokeLater(() -> {
-                    String formatted = extractGeminiText(response);
-                    responseTextArea.setText(formatted);
-                    sendButton.setEnabled(true);
+                String formatted = extractGeminiText(response);
+                formatted = postProcessGeminiText(formatted);   // <<< new line
+                responseTextArea.setText(formatted);
+                sendButton.setEnabled(true);
                 });
+
             } catch (Exception ex) {
                 ex.printStackTrace();
                 SwingUtilities.invokeLater(() -> {
@@ -380,41 +392,106 @@ public class ImagesToGPT extends JPanel implements IPluginExtraTabView {
     }
 
     // Extract candidates[0].content.parts[0].text from Gemini response
-    private String extractGeminiText(String response) {
-        try {
-            int candidatesIdx = response.indexOf("\"candidates\"");
-            if (candidatesIdx == -1) return response;
+    // Better extractor for Gemini: decodes \n, \t, \" and \*uXXXX like*\ \u003c, \u003e
+private String extractGeminiText(String response) {
+    try {
+        int candidatesIdx = response.indexOf("\"candidates\"");
+        if (candidatesIdx == -1) return response;
 
-            int textIdx = response.indexOf("\"text\"", candidatesIdx);
-            if (textIdx == -1) return response;
+        int textIdx = response.indexOf("\"text\"", candidatesIdx);
+        if (textIdx == -1) return response;
 
-            int colonIdx = response.indexOf(":", textIdx);
-            if (colonIdx == -1) return response;
+        int colonIdx = response.indexOf(":", textIdx);
+        if (colonIdx == -1) return response;
 
-            int startQuote = response.indexOf("\"", colonIdx + 1);
-            if (startQuote == -1) return response;
+        int startQuote = response.indexOf("\"", colonIdx + 1);
+        if (startQuote == -1) return response;
 
-            StringBuilder sb = new StringBuilder();
-            for (int i = startQuote + 1; i < response.length(); i++) {
-                char c = response.charAt(i);
-                if (c == '"') break;
-                if (c == '\\' && i + 1 < response.length()) {
-                    char next = response.charAt(i + 1);
-                    if (next == 'n') { sb.append('\n'); i++; }
-                    else if (next == 't') { sb.append('\t'); i++; }
-                    else if (next == '"') { sb.append('"'); i++; }
-                    else if (next == '\\') { sb.append('\\'); i++; }
-                    else { sb.append(next); i++; }
+        StringBuilder sb = new StringBuilder();
+        boolean escaped = false;
+
+        for (int i = startQuote + 1; i < response.length(); i++) {
+            char c = response.charAt(i);
+
+            if (!escaped) {
+                if (c == '\\') {
+                    escaped = true;
+                } else if (c == '"') {
+                    // end of the JSON string
+                    break;
                 } else {
                     sb.append(c);
                 }
+            } else {
+                // we are after a backslash: handle escapes
+                if (c == 'u' && i + 4 < response.length()) {
+                    // Unicode escape: //uXXXX
+                    String hex = response.substring(i + 1, i + 5);
+                    try {
+                        int codePoint = Integer.parseInt(hex, 16);
+                        sb.append((char) codePoint);
+                        i += 4; // skip the 4 hex digits
+                    } catch (NumberFormatException e) {
+                        // Fallback: keep the escape as-is if parsing fails
+                        sb.append('\\').append('u').append(hex);
+                        i += 4;
+                    }
+                } else {
+                    switch (c) {
+                        case 'n': sb.append('\n'); break;
+                        case 't': sb.append('\t'); break;
+                        case 'r': sb.append('\r'); break;
+                        case 'b': sb.append('\b'); break;
+                        case 'f': sb.append('\f'); break;
+                        case '"': sb.append('"'); break;
+                        case '\\': sb.append('\\'); break;
+                        default:
+                            // Unknown escape, keep the character
+                            sb.append(c);
+                            break;
+                    }
+                }
+                escaped = false;
             }
-            String content = sb.toString().trim();
-            return content.isEmpty() ? response : content;
-        } catch (Exception e) {
-            return response;
         }
+
+        String content = sb.toString().trim();
+        return content.isEmpty() ? response : content;
+    } catch (Exception e) {
+        // If anything goes wrong, just show the raw response for debugging
+        return response;
     }
+}
+
+// Clean up some unwanted tokens from Gemini output
+private String postProcessGeminiText(String text) {
+    if (text == null) return "";
+
+    String result = text;
+
+    // Remove language label in fenced code blocks: ```mermaid -> ```
+    result = result.replace("```mermaid", "```");
+
+    // Remove standalone 'mermaid' lines
+    result = result.replaceAll("(?m)^\\s*mermaid\\s*$", "");
+
+    // Remove lines like 'graph TD' or 'graphTD'
+    result = result.replaceAll("(?m)^\\s*graph\\s*TD\\s*$", "");
+    result = result.replaceAll("\\bgraph\\s*TD\\b", "");
+    result = result.replaceAll("\\bgraphTD\\b", "");
+
+    // Remove UC labels like UC1, UC2, UC15, etc.
+    result = result.replaceAll("\\bUC\\d+\\b", "");
+
+    // Collapse multiple spaces that may be left after removals
+    result = result.replaceAll(" {2,}", " ");
+
+    // Tidy up empty lines created by removals
+    result = result.replaceAll("(?m)^[ \\t]+$", "");
+    result = result.trim();
+
+    return result;
+}
 
     private String postJson(String endpoint, String json, String apiKey) throws IOException {
         URL url = new URL(endpoint);

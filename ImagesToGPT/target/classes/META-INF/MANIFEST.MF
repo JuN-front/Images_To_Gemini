@@ -1,7 +1,7 @@
 Manifest-Version: 1.0
 Astah-Edition: all
 Astah-Version: 1.0
-Bnd-LastModified: 1765373439534
+Bnd-LastModified: 1765427776887
 Build-Jdk-Spec: 21
 Bundle-Activator: com.example.Activator
 Bundle-Description: %bundle.description
