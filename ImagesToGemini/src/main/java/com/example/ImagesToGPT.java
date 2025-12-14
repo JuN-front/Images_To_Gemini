@@ -556,52 +556,75 @@ private String postProcessGeminiText(String text) {
     // ===================== API KEY LOADING =====================
 
     private void loadApiKey() {
+    java.util.Properties props = new java.util.Properties();
+    boolean loaded = false;
+
+    // 1) Try external file next to the plugin JAR
+    try {
+        // Where is this class loaded from (the plugin JAR)?
+        java.security.CodeSource cs = ImagesToGPT.class
+                .getProtectionDomain()
+                .getCodeSource();
+
+        if (cs != null) {
+            java.io.File jarFile = new java.io.File(cs.getLocation().toURI());
+            java.io.File jarDir = jarFile.getParentFile();
+
+            // External config file name (you can change this if you want)
+            java.io.File externalConfig = new java.io.File(jarDir, "images-to-gemini.properties");
+
+            if (externalConfig.isFile()) {
+                try (InputStream in = new java.io.FileInputStream(externalConfig)) {
+                    props.load(in);
+                    loaded = true;
+                }
+            }
+        }
+    } catch (Exception ignored) {
+        // You could log this if you have a logging facility, but don't crash the plugin
+    }
+
+    // 2) Fallback: try classpath resource (for your own development/testing)
+    if (!loaded) {
         InputStream in = null;
         try {
-            // Try context class loader
             ClassLoader cl = Thread.currentThread().getContextClassLoader();
             if (cl != null) {
                 in = cl.getResourceAsStream("config.properties");
             }
-
-            // Try this class's classloader
             if (in == null) {
                 in = ImagesToGPT.class.getClassLoader().getResourceAsStream("config.properties");
             }
-
-            // Try absolute resource
             if (in == null) {
                 in = ImagesToGPT.class.getResourceAsStream("/config.properties");
             }
 
-            if (in == null) {
-                JOptionPane.showMessageDialog(this,
-                        "Could not find config.properties on the classpath.\n" +
-                        "Make sure it is in the resources folder and included in the plugin JAR.",
-                        "API key error",
-                        JOptionPane.ERROR_MESSAGE);
-                return;
+            if (in != null) {
+                props.load(in);
+                loaded = true;
             }
-
-            java.util.Properties props = new java.util.Properties();
-            props.load(in);
-            apiKey = props.getProperty("gemini.api.key");
-
-            if (apiKey == null || apiKey.isEmpty()) {
-                JOptionPane.showMessageDialog(this,
-                        "Property 'gemini.api.key' not found or empty in config.properties.",
-                        "API key error",
-                        JOptionPane.ERROR_MESSAGE);
-            }
-        } catch (IOException e) {
-            JOptionPane.showMessageDialog(this,
-                    "Could not load API key: " + e.getMessage(),
-                    "API key error",
-                    JOptionPane.ERROR_MESSAGE);
+        } catch (IOException ignored) {
         } finally {
             if (in != null) {
                 try { in.close(); } catch (IOException ignored) {}
             }
         }
     }
+
+    // 3) Read the key from whichever config we managed to load
+    apiKey = props.getProperty("gemini.api.key");  // <--- property name used in external file
+
+    if (apiKey == null || apiKey.trim().isEmpty()) {
+        JOptionPane.showMessageDialog(this,
+                "Gemini API key is not set.\n\n" +
+                "Please create a file named 'images-to-gemini.properties'\n" +
+                "in the same folder as this plugin JAR, with a line like:\n\n" +
+                "gemini.api.key=YOUR_REAL_GEMINI_KEY_HERE",
+                "API key error",
+                JOptionPane.ERROR_MESSAGE);
+        apiKey = null;
+    } else {
+        apiKey = apiKey.trim();
+    }
+}
 }
