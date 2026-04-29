@@ -34,7 +34,7 @@ This method is for users who want to build or modify the source code.
 
    ```bash
    cd path\to\astah-plugin-SDK-xx
-   git clone <this-repo-url> ImagesToGemini
+   git clone <this-repo-url>
 
 ---
 
